@@ -1,0 +1,14 @@
+{
+  "name": "ahcl",
+  "compatibility_date": "2026-02-17",
+  "assets": {
+    "directory": "./dist"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ahcl-db",
+      "database_id": "9fabb653-7bda-4f67-a1c0-8dbedf7fd259"
+    }
+  ]
+}
