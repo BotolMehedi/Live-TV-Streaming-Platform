@@ -14,13 +14,25 @@ interface CategoryGroup {
 
 function groupChannels(channels: Channel[]): CategoryGroup[] {
   const map = new Map<string, number>();
+
   for (const ch of channels) {
     const g = ch.group || 'Uncategorized';
     map.set(g, (map.get(g) || 0) + 1);
   }
+
   return Array.from(map.entries())
     .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => b.count - a.count);
+    .sort((a, b) => {
+      const aStartsWithNumber = /^[0-9]/.test(a.name);
+      const bStartsWithNumber = /^[0-9]/.test(b.name);
+
+      // If one starts with number and the other doesn't
+      if (aStartsWithNumber && !bStartsWithNumber) return -1;
+      if (!aStartsWithNumber && bStartsWithNumber) return 1;
+
+      // Otherwise sort alphabetically (case-insensitive)
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
 }
 
 const CategoryList = ({ groups, type }: { groups: CategoryGroup[]; type: 'tv' | 'movie' }) => {
