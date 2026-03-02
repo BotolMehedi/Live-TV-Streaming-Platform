@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { verifyAdmin, updateAdminPassword, getTVPlaylists, setTVPlaylists, getMoviePlaylists, setMoviePlaylists, clearAuthToken } from '@/lib/store';
-import { Lock, LogOut, Plus, Trash2, Save, Tv, Film, KeyRound, Loader2, ShieldCheck, Eye, EyeOff, CheckCircle2, XCircle } from 'lucide-react';
+import { verifyAdmin, updateAdminPassword, getTVPlaylists, setTVPlaylists, getMoviePlaylists, setMoviePlaylists, getNamedPlaylists, setNamedPlaylists, clearAuthToken, NamedPlaylist } from '@/lib/store';
+import { Lock, LogOut, Plus, Trash2, Save, Tv, Film, KeyRound, Loader2, ShieldCheck, Eye, EyeOff, CheckCircle2, XCircle, Heart, LayoutGrid } from 'lucide-react';
 
 const SESSION_KEY = 'ahcl_admin_session';
 const SESSION_TTL = 8 * 60 * 60 * 1000;
@@ -110,9 +110,11 @@ const Admin = () => {
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState('');
-  const [tab, setTab] = useState<'tv' | 'movies' | 'password'>('tv');
+  const [tab, setTab] = useState<'tv' | 'movies' | 'adult' | 'others' | 'password'>('tv');
   const [tvUrls, setTvUrls] = useState<string[]>([]);
   const [movieUrls, setMovieUrls] = useState<string[]>([]);
+  const [adultPlaylists, setAdultPlaylists] = useState<NamedPlaylist[]>([]);
+  const [othersPlaylists, setOthersPlaylists] = useState<NamedPlaylist[]>([]);
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
   const [showNewPass, setShowNewPass] = useState(false);
@@ -125,8 +127,8 @@ const Admin = () => {
     const user = loadSession();
     if (user) {
       setLoggedIn(true);
-      Promise.all([getTVPlaylists(), getMoviePlaylists()]).then(([tv, movies]) => {
-        setTvUrls(tv); setMovieUrls(movies); setSessionLoading(false);
+      Promise.all([getTVPlaylists(), getMoviePlaylists(), getNamedPlaylists('adult'), getNamedPlaylists('others')]).then(([tv, movies, adult, others]) => {
+        setTvUrls(tv); setMovieUrls(movies); setAdultPlaylists(adult); setOthersPlaylists(others); setSessionLoading(false);
       });
     } else {
       setSessionLoading(false);
@@ -145,8 +147,8 @@ const Admin = () => {
     if (valid) {
       saveSession(username);
       setLoggedIn(true);
-      const [tv, movies] = await Promise.all([getTVPlaylists(), getMoviePlaylists()]);
-      setTvUrls(tv); setMovieUrls(movies);
+      const [tv, movies, adult, others] = await Promise.all([getTVPlaylists(), getMoviePlaylists(), getNamedPlaylists('adult'), getNamedPlaylists('others')]);
+      setTvUrls(tv); setMovieUrls(movies); setAdultPlaylists(adult); setOthersPlaylists(others);
     } else {
       setError('Invalid credentials. Please try again.');
     }
@@ -170,6 +172,20 @@ const Admin = () => {
     const ok = await setMoviePlaylists(movieUrls.filter(Boolean));
     setSaving(false);
     showToast(ok ? 'Movie playlists saved.' : 'Failed to save Movie playlists.', ok);
+  };
+
+  const saveAdult = async () => {
+    setSaving(true);
+    const ok = await setNamedPlaylists('adult', adultPlaylists.filter(p => p.name && p.url));
+    setSaving(false);
+    showToast(ok ? 'Adult Zone playlists saved.' : 'Failed to save.', ok);
+  };
+
+  const saveOthers = async () => {
+    setSaving(true);
+    const ok = await setNamedPlaylists('others', othersPlaylists.filter(p => p.name && p.url));
+    setSaving(false);
+    showToast(ok ? 'Others playlists saved.' : 'Failed to save.', ok);
   };
 
   const changePassword = async () => {
@@ -277,12 +293,22 @@ const Admin = () => {
   const tabs = [
     { key: 'tv' as const, Icon: Tv, label: 'TV Playlists' },
     { key: 'movies' as const, Icon: Film, label: 'Movies' },
+    { key: 'adult' as const, Icon: Heart, label: 'Adult Zone' },
+    { key: 'others' as const, Icon: LayoutGrid, label: 'Others' },
     { key: 'password' as const, Icon: KeyRound, label: 'Security' },
   ];
+
+  // For TV/Movies tabs (url-only)
+  const isUrlTab = tab === 'tv' || tab === 'movies';
   const urlList = tab === 'tv' ? tvUrls : movieUrls;
   const setUrlList = tab === 'tv' ? setTvUrls : setMovieUrls;
   const urlPlaceholder = tab === 'tv' ? 'https://example.com/playlist.m3u' : 'https://example.com/movies.m3u';
-  const handleSave = tab === 'tv' ? saveTv : saveMovies;
+  const handleSave = tab === 'tv' ? saveTv : tab === 'movies' ? saveMovies : tab === 'adult' ? saveAdult : saveOthers;
+
+  // For Adult/Others tabs (named)
+  const isNamedTab = tab === 'adult' || tab === 'others';
+  const namedList = tab === 'adult' ? adultPlaylists : othersPlaylists;
+  const setNamedList = tab === 'adult' ? setAdultPlaylists : setOthersPlaylists;
 
   return (
     <div className="adm-root" style={{
@@ -343,9 +369,8 @@ const Admin = () => {
         </div>
 
         {/* TV / Movies */}
-        {(tab === 'tv' || tab === 'movies') && (
+        {isUrlTab && (
           <div className="adm-card" style={{ borderRadius: 18, padding: '22px 18px' }}>
-            {/* Panel header */}
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 22, flexWrap: 'wrap' }}>
               <div>
                 <h2 className="adm-display" style={{ color: 'white', fontSize: 16, margin: 0 }}>
@@ -371,12 +396,9 @@ const Admin = () => {
               </button>
             </div>
 
-            {/* URL list */}
             {urlList.length === 0 ? (
               <div style={{ padding: '36px 16px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 11 }}>
-                <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 13, margin: 0 }}>
-                  No playlist URLs yet. Click "Add URL" to get started.
-                </p>
+                <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 13, margin: 0 }}>No playlist URLs yet. Click "Add URL" to get started.</p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
@@ -409,11 +431,107 @@ const Admin = () => {
               </div>
             )}
 
-            {/* Footer */}
             <div className="adm-card-footer" style={{ marginTop: 22, paddingTop: 18, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-              <p style={{ color: 'rgba(255,255,255,0.22)', fontSize: 12, margin: 0 }}>
-                Changes are saved to the server immediately.
-              </p>
+              <p style={{ color: 'rgba(255,255,255,0.22)', fontSize: 12, margin: 0 }}>Changes are saved to the server immediately.</p>
+              <button onClick={handleSave} disabled={saving} className="adm-btn-primary" style={{
+                padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
+              }}>
+                {saving ? <Loader2 style={{ width: 14, height: 14 }} className="adm-spin" /> : <Save style={{ width: 14, height: 14 }} />}
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Adult Zone / Others — Named playlists */}
+        {isNamedTab && (
+          <div className="adm-card" style={{ borderRadius: 18, padding: '22px 18px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 22, flexWrap: 'wrap' }}>
+              <div>
+                <h2 className="adm-display" style={{ color: 'white', fontSize: 16, margin: 0 }}>
+                  {tab === 'adult' ? 'Adult Zone Playlists' : 'Others Playlists'}
+                </h2>
+                <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, margin: '3px 0 0' }}>
+                  Each playlist needs a name (shown as tab) and a URL. {namedList.length} playlist{namedList.length !== 1 ? 's' : ''} configured.
+                </p>
+              </div>
+              <button
+                onClick={() => setNamedList([...namedList, { name: '', url: '' }])}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '8px 14px', borderRadius: 9,
+                  border: '1px solid rgba(255,255,255,0.1)', background: 'none',
+                  color: 'rgba(255,255,255,0.58)', fontSize: 13, cursor: 'pointer',
+                  transition: 'all 0.18s', whiteSpace: 'nowrap', flexShrink: 0,
+                }}
+                onMouseEnter={e => { const el = e.currentTarget; el.style.borderColor = 'rgba(99,102,241,0.45)'; el.style.color = 'white'; el.style.background = 'rgba(99,102,241,0.1)'; }}
+                onMouseLeave={e => { const el = e.currentTarget; el.style.borderColor = 'rgba(255,255,255,0.1)'; el.style.color = 'rgba(255,255,255,0.58)'; el.style.background = 'none'; }}
+              >
+                <Plus style={{ width: 13, height: 13 }} /> Add Playlist
+              </button>
+            </div>
+
+            {namedList.length === 0 ? (
+              <div style={{ padding: '36px 16px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 11 }}>
+                <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 13, margin: 0 }}>No playlists yet. Click "Add Playlist" to get started.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {namedList.map((pl, i) => (
+                  <div key={i} className="adm-slide" style={{
+                    padding: '14px', borderRadius: 12,
+                    border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontFamily: 'monospace' }}>
+                        #{String(i + 1).padStart(2, '0')}
+                      </span>
+                      <button
+                        onClick={() => setNamedList(namedList.filter((_, j) => j !== i))}
+                        style={{
+                          padding: 6, borderRadius: 6, border: 'none', background: 'none',
+                          cursor: 'pointer', color: 'rgba(255,255,255,0.22)',
+                          display: 'flex', alignItems: 'center', transition: 'all 0.15s',
+                        }}
+                        onMouseEnter={e => { const el = e.currentTarget; el.style.color = '#f87171'; el.style.background = 'rgba(239,68,68,0.1)'; }}
+                        onMouseLeave={e => { const el = e.currentTarget; el.style.color = 'rgba(255,255,255,0.22)'; el.style.background = 'none'; }}
+                      >
+                        <Trash2 style={{ width: 13, height: 13 }} />
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
+                          Tab Name
+                        </label>
+                        <input
+                          value={pl.name}
+                          onChange={(e) => { const u = [...namedList]; u[i] = { ...u[i], name: e.target.value }; setNamedList(u); }}
+                          placeholder="e.g. Adult 1"
+                          className="adm-input"
+                          style={{ padding: '9px 12px', borderRadius: 9, fontSize: 13 }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
+                          Playlist URL
+                        </label>
+                        <input
+                          value={pl.url}
+                          onChange={(e) => { const u = [...namedList]; u[i] = { ...u[i], url: e.target.value }; setNamedList(u); }}
+                          placeholder="https://example.com/playlist.m3u"
+                          className="adm-input"
+                          style={{ padding: '9px 12px', borderRadius: 9, fontSize: 13, fontFamily: 'monospace' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="adm-card-footer" style={{ marginTop: 22, paddingTop: 18, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <p style={{ color: 'rgba(255,255,255,0.22)', fontSize: 12, margin: 0 }}>Changes are saved to the server immediately.</p>
               <button onClick={handleSave} disabled={saving} className="adm-btn-primary" style={{
                 padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
               }}>
