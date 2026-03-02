@@ -117,38 +117,38 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   }
 
   if (path === "/api/admin/named-playlists" && request.method === "PUT") {
+  if (!(await verifyAuth(request, env.DB)))
+    return json({ error: "Unauthorized" }, 401);
+
   try {
-    if (!(await verifyAuth(request, env.DB)))
-      return json({ error: "Unauthorized" }, 401);
+    const body = await request.json<{ type: string; playlists: { name: string; url: string }[] }>();
 
-    const body = await request.json();
-
-    if (!body?.type || !Array.isArray(body?.playlists)) {
-      return json({ error: "Invalid payload" }, 400);
-    }
+    console.log("Body received:", JSON.stringify(body));
 
     await env.DB.prepare("DELETE FROM playlists WHERE type = ?")
       .bind(body.type)
       .run();
 
+    console.log("Deleted old rows");
+
     const stmt = env.DB.prepare(
       "INSERT INTO playlists (url, type, sort_order, name) VALUES (?, ?, ?, ?)"
     );
 
-    const batch = body.playlists.map((p: any, i: number) =>
+    const batch = body.playlists.map((p, i) =>
       stmt.bind(p.url, body.type, i + 1, p.name)
     );
 
-    if (batch.length) {
-      await env.DB.batch(batch);
-    }
+    console.log("Batch size:", batch.length);
+
+    if (batch.length) await env.DB.batch(batch);
 
     return json({ success: true });
-
   } catch (err: any) {
-    return json({ error: err.message || "Server error" }, 500);
+    console.error("Error in named-playlists PUT:", err);
+    return json({ error: err.message || String(err) }, 500);
   }
-      }
+                 }
 
   return json({ error: "Not found" }, 404);
 };
