@@ -16,6 +16,8 @@ import Disclaimer from "./pages/Disclaimer";
 import NotFound from "./pages/NotFound";
 import Categories from "./pages/Categories";
 import CategoryChannels from "./pages/CategoryChannels";
+import AdultZone from "./pages/AdultZone";
+import Others from "./pages/Others";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +35,8 @@ const App = () => (
           <Route path="/movies/watch" element={<Watch />} />
           <Route path="/categories" element={<Categories />} />
           <Route path="/categories/:type/:category" element={<CategoryChannels />} />
+          <Route path="/adult-zone" element={<AdultZone />} />
+          <Route path="/others" element={<Others />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
