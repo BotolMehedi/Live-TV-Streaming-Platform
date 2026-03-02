@@ -38,8 +38,15 @@ interface AdminCredentials {
 const ADMIN_KEY = 'ahcl_admin';
 const PLAYLISTS_KEY = 'ahcl_playlists';
 const MOVIE_PLAYLISTS_KEY = 'ahcl_movie_playlists';
+const ADULT_PLAYLISTS_KEY = 'ahcl_adult_playlists';
+const OTHERS_PLAYLISTS_KEY = 'ahcl_others_playlists';
 
-const DEFAULT_ADMIN: AdminCredentials = { username: 'admin', password: 'admin' };
+export interface NamedPlaylist {
+  name: string;
+  url: string;
+}
+
+const DEFAULT_ADMIN: AdminCredentials = { username: 'admin', password: '123456' };
 
 const DEFAULT_TV_PLAYLISTS = [
   'https://raw.githubusercontent.com/abusaeeidx/Mrgify-BDIX-IPTV/refs/heads/main/playlist.m3u',
@@ -176,5 +183,40 @@ export async function setMoviePlaylists(urls: string[]): Promise<boolean> {
     }
   }
   localStorage.setItem(MOVIE_PLAYLISTS_KEY, JSON.stringify(urls));
+  return true;
+}
+
+/** Get named playlists (adult/others) */
+export async function getNamedPlaylists(section: 'adult' | 'others'): Promise<NamedPlaylist[]> {
+  if (isApiMode()) {
+    try {
+      const res = await fetch(`${API_URL}/api/playlists?type=${section}`);
+      const data = await res.json();
+      return data.playlists || [];
+    } catch {
+      return [];
+    }
+  }
+  const key = section === 'adult' ? ADULT_PLAYLISTS_KEY : OTHERS_PLAYLISTS_KEY;
+  const stored = localStorage.getItem(key);
+  return stored ? JSON.parse(stored) : [];
+}
+
+/** Set named playlists (adult/others) */
+export async function setNamedPlaylists(section: 'adult' | 'others', playlists: NamedPlaylist[]): Promise<boolean> {
+  if (isApiMode()) {
+    try {
+      const res = await fetch(`${API_URL}/api/admin/named-playlists`, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({ type: section, playlists }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+  const key = section === 'adult' ? ADULT_PLAYLISTS_KEY : OTHERS_PLAYLISTS_KEY;
+  localStorage.setItem(key, JSON.stringify(playlists));
   return true;
 }
