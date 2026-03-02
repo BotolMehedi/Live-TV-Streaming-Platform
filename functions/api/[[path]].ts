@@ -43,6 +43,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   if (path === "/api/playlists" && request.method === "GET") {
     const type = url.searchParams.get("type") || "tv";
 
+    if (type === "adult" || type === "others") {
+      const rows = await env.DB.prepare(
+        "SELECT name, url FROM playlists WHERE type = ? ORDER BY sort_order ASC"
+      )
+        .bind(type)
+        .all<{ name: string; url: string }>();
+      return json({ playlists: rows.results });
+    }
+
     const rows = await env.DB.prepare(
       "SELECT url FROM playlists WHERE type = ? ORDER BY sort_order ASC"
     )
@@ -100,6 +109,29 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     const batch = body.urls.map((u, i) =>
       stmt.bind(u, body.type, i + 1)
+    );
+
+    if (batch.length) await env.DB.batch(batch);
+
+    return json({ success: true });
+  }
+
+  if (path === "/api/admin/named-playlists" && request.method === "PUT") {
+    if (!(await verifyAuth(request, env.DB)))
+      return json({ error: "Unauthorized" }, 401);
+
+    const body = await request.json<{ type: string; playlists: { name: string; url: string }[] }>();
+
+    await env.DB.prepare("DELETE FROM playlists WHERE type = ?")
+      .bind(body.type)
+      .run();
+
+    const stmt = env.DB.prepare(
+      "INSERT INTO playlists (url, type, sort_order, name) VALUES (?, ?, ?, ?)"
+    );
+
+    const batch = body.playlists.map((p, i) =>
+      stmt.bind(p.url, body.type, i + 1, p.name)
     );
 
     if (batch.length) await env.DB.batch(batch);
