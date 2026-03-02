@@ -117,10 +117,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   }
 
   if (path === "/api/admin/named-playlists" && request.method === "PUT") {
+  try {
     if (!(await verifyAuth(request, env.DB)))
       return json({ error: "Unauthorized" }, 401);
 
-    const body = await request.json<{ type: string; playlists: { name: string; url: string }[] }>();
+    const body = await request.json();
+
+    if (!body?.type || !Array.isArray(body?.playlists)) {
+      return json({ error: "Invalid payload" }, 400);
+    }
 
     await env.DB.prepare("DELETE FROM playlists WHERE type = ?")
       .bind(body.type)
@@ -130,14 +135,20 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       "INSERT INTO playlists (url, type, sort_order, name) VALUES (?, ?, ?, ?)"
     );
 
-    const batch = body.playlists.map((p, i) =>
+    const batch = body.playlists.map((p: any, i: number) =>
       stmt.bind(p.url, body.type, i + 1, p.name)
     );
 
-    if (batch.length) await env.DB.batch(batch);
+    if (batch.length) {
+      await env.DB.batch(batch);
+    }
 
     return json({ success: true });
+
+  } catch (err: any) {
+    return json({ error: err.message || "Server error" }, 500);
   }
+      }
 
   return json({ error: "Not found" }, 404);
 };
