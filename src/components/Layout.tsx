@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Tv, Menu, X, Film } from 'lucide-react';
+import { Tv, Menu, X, Film, Heart, LayoutGrid } from 'lucide-react';
 import { useState } from 'react';
 
 const navLinks = [
@@ -7,6 +7,8 @@ const navLinks = [
   { href: '/live', label: 'Live TV' },
   { href: '/movies', label: 'Movies' },
   { href: '/categories', label: 'Categories' },
+  { href: '/adult-zone', label: 'Adult Zone' },
+  { href: '/others', label: 'Others' },
   { href: '/about', label: 'About Us' },
   { href: '/contact', label: 'Contact' },
 ];
